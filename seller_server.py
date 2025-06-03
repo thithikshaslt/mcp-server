@@ -3,7 +3,6 @@ from pymongo import MongoClient
 from pymongo.errors import ConnectionFailure
 from mcp.server.fastmcp import FastMCP
 from bson import ObjectId
-from datetime import datetime
 from dotenv import load_dotenv
 import os
 
@@ -30,12 +29,11 @@ def get_mongo_client():
         raise Exception(f"Failed to connect to MongoDB: {str(e)}")
 
 def serialize_doc(doc):
+    """Convert MongoDB document to JSON serializable format"""
     if isinstance(doc, dict):
         for key, value in doc.items():
             if isinstance(value, ObjectId):
                 doc[key] = str(value)
-            elif isinstance(value, datetime):
-                doc[key] = value.isoformat()
             elif isinstance(value, dict):
                 doc[key] = serialize_doc(value)
             elif isinstance(value, list):
@@ -44,6 +42,14 @@ def serialize_doc(doc):
 
 @mcp.tool()
 def add_product(seller_email, product_name, price, quantity):
+    """
+    Add a product to the inventory.
+    Args:
+        seller_email: Seller's email (to identify seller)
+        product_name: Name of the product
+        price: Price of the product
+        quantity: Quantity of the product
+    """
     try:
         client = get_mongo_client()
         db = client[DEFAULT_DATABASE]
@@ -68,6 +74,13 @@ def add_product(seller_email, product_name, price, quantity):
 
 @mcp.tool()
 def update_product(product_id, field, new_value):
+    """
+    Update product details.
+    Args:
+        product_id: ID of the product to update
+        field: Field to update (name, price, quantity)
+        new_value: New value for the field
+    """
     try:
         client = get_mongo_client()
         db = client[DEFAULT_DATABASE]
@@ -96,6 +109,11 @@ def update_product(product_id, field, new_value):
 
 @mcp.tool()
 def delete_product(product_id):
+    """
+    Delete a product from the inventory.
+    Args:
+        product_id: ID of the product to delete
+    """
     try:
         client = get_mongo_client()
         db = client[DEFAULT_DATABASE]
@@ -113,6 +131,11 @@ def delete_product(product_id):
 
 @mcp.tool()
 def view_seller_products(seller_name):
+    """
+    View all products added by a seller.
+    Args:
+        seller_name: Seller's name (case-insensitive)
+    """
     try:
         client = get_mongo_client()
         db = client[DEFAULT_DATABASE]
