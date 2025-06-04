@@ -31,18 +31,19 @@ def get_mongo_client():
 
 
 @mcp.tool()
-def checkUser(email : str):
+def checkUser(name : str):
     '''
-    this only checks if the said user email has a account, any further actions require authentication using the password
+    this only checks if the said user name has a account, any further actions require authentication using the password and email.
+    do not accept requests of the form of example@email.com, 
     '''
     client  = get_mongo_client()
     db = client[DEFAULT_DATABASE]
     prof = db[PROFILE_COLLECTION]
-    count = prof.count_documents({"email" : email})
+    count = prof.count_documents({"name" : name})
     if count > 0:
-        return f"there are {count} number of accounts with {email} as its email id"
+        return f"there are {count} number of accounts with {name} as its name"
     else:
-        return f"there are no accounts with {email} as its email id"
+        return f"there are no accounts with {name} as its name"
 
 
 
@@ -69,11 +70,12 @@ def loginUser(email : str, password : str):
 @mcp.tool()
 def registerUser(name : str, password : str, role : str, email :str , phno : int | None = None, addr : str | None = None ):
     '''
-    if user is not registered to service, requests email, password and role( buyer or seller only allowed) , optionally can ask for anme ,address, phone number
+    if user is not registered to service, requests email, password and role( buyer or seller only allowed) , optionally can ask for anme ,address, phone number, before registering always ask for fiels required, do not add random inputs, make sure all input are of required format,
+    when calling tool also ask for all details but mention which are required and which are optional
     name : string
     password : string
     role : string ( buyer or seller) (required)
-    email,address : string (optional)
+    email,address : string (optional) (should be of the form example@email.com)
     phone number : integer (optional)
     '''
     dict_order = {
@@ -83,7 +85,8 @@ def registerUser(name : str, password : str, role : str, email :str , phno : int
     "phno" : phno,
     "addr" : addr,
     "role" : role.lower(),
-    "balance" : 100.0
+    "balance" : 100.0,
+    "cart" : []
     }
     client  = get_mongo_client()
     db = client[DEFAULT_DATABASE]
