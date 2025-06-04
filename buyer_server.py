@@ -1,12 +1,46 @@
 import json
+from pymongo import MongoClient
+from pymongo.errors import ConnectionFailure
 from mcp.server.fastmcp import FastMCP
 from bson import ObjectId
-from utils.db_utils import get_mongo_client
-from utils.constants import DEFAULT_DATABASE, PROFILE_COLLECTION, INVENTORY_COLLECTION
-from utils.helpers import get_email_by_name
+from dotenv import load_dotenv
+import os
+
+load_dotenv()
 
 mcp = FastMCP("Buyer Service")
 
+MONGODB_USER = os.getenv("MONGODB_USER")
+MONGODB_PASS = os.getenv("MONGODB_PASS")
+MONGODB_CLUSTER = os.getenv("MONGODB_CLUSTER")
+
+MONGODB_URI = f"mongodb+srv://{MONGODB_USER}:{MONGODB_PASS}@{MONGODB_CLUSTER}/"
+DEFAULT_DATABASE = "superstore"
+PROFILE_COLLECTION = "profile"
+INVENTORY_COLLECTION = "inventory"
+
+def get_mongo_client():
+    try:
+        client = MongoClient(MONGODB_URI, serverSelectionTimeoutMS=5000)
+        client.admin.command("ping")
+        return client
+    except ConnectionFailure as e:
+        raise Exception(f"MongoDB connection failed: {str(e)}")
+
+def get_email_by_name(name: str):
+    """Resolve buyer's email using name"""
+    client = get_mongo_client()
+    try:
+        db = client[DEFAULT_DATABASE]
+        profile = db[PROFILE_COLLECTION].find_one({
+            "name": {"$regex": f"^{name.strip()}$", "$options": "i"},
+            "role": {"$regex": "^buyer$", "$options": "i"}
+        })
+        if not profile:
+            return None
+        return profile.get("email").lower()
+    finally:
+        client.close()
 @mcp.tool()
 def view_all_products() -> str:
     """Fetch and display all products available in the store."""
