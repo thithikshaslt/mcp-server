@@ -1,0 +1,5 @@
+DEFAULT_DATABASE = "superstore"
+PROFILE_COLLECTION = "profile"
+INVENTORY_COLLECTION = "inventory"
+ORDER_COLLECTION = "order"
+PAYMENT_COLLECTION = "payment"

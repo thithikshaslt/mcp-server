@@ -1,51 +1,47 @@
-import json
-from pymongo import MongoClient
-from pymongo.errors import ConnectionFailure
 from mcp.server.fastmcp import FastMCP
-from bson import ObjectId
-from dotenv import load_dotenv
-import os
-
-load_dotenv()
-
-DEFAULT_DATABASE = "superstore"
-INVENTORY_COLLECTION = "inventory"
-PROFILE_COLLECTION = "profile"
-
-MONGODB_USER = os.getenv("MONGODB_USER")
-MONGODB_PASS = os.getenv("MONGODB_PASS")
-MONGODB_CLUSTER = os.getenv("MONGODB_CLUSTER")
-
-MONGODB_URI = f"mongodb+srv://{MONGODB_USER}:{MONGODB_PASS}@{MONGODB_CLUSTER}/"
-
+from utils.db_utils import get_mongo_client
+from utils.constants import DEFAULT_DATABASE, PROFILE_COLLECTION
 
 mcp = FastMCP("Login")
 
-def get_mongo_client():
-    try:
-        client = MongoClient(MONGODB_URI, serverSelectionTimeoutMS=5000)
-        client.admin.command('ping')
-        return client
-    except ConnectionFailure as e:
-        raise Exception(f"Failed to connect to MongoDB: {str(e)}")
-
-
 @mcp.tool()
-def checkUser(name : str):
+def checkUser(name: str):
     '''
-    this only checks if the said user name has a account, any further actions require authentication using the password and email.
-    do not accept requests of the form of example@email.com, 
+    Check if the given user name exists (case-insensitive exact match).
     '''
-    client  = get_mongo_client()
-    db = client[DEFAULT_DATABASE]
-    prof = db[PROFILE_COLLECTION]
-    count = prof.count_documents({"name" : name})
-    if count > 0:
-        return f"there are {count} number of accounts with {name} as its name"
-    else:
-        return f"there are no accounts with {name} as its name"
+    client = None
+    try:
+        client = get_mongo_client()
+        db = client[DEFAULT_DATABASE]
+        prof = db[PROFILE_COLLECTION]
 
+        count = prof.count_documents({"name": {"$regex": f"^{name.strip()}$", "$options": "i"}})
 
+        if count > 0:
+            return f"There {'is' if count == 1 else 'are'} {count} account{'s' if count > 1 else ''} with '{name.strip()}' as the name."
+        else:
+            return f"There are no accounts with '{name.strip()}' as the name."
+
+    except Exception as e:
+        return f"Error checking user: {str(e)}"
+    finally:
+        if client:
+            client.close()
+
+# @mcp.tool()
+# def checkUser(name : str):
+#     '''
+#     this only checks if the said user name has a account, any further actions require authentication using the password and email.
+#     do not accept requests of the form of example@email.com, 
+#     '''
+#     client  = get_mongo_client()
+#     db = client[DEFAULT_DATABASE]
+#     prof = db[PROFILE_COLLECTION]
+#     count = prof.count_documents({"name" : name})
+#     if count > 0:
+#         return f"there are {count} number of accounts with {name} as its name"
+#     else:
+#         return f"there are no accounts with {name} as its name"
 
 @mcp.tool()
 def loginUser(email : str, password : str):
@@ -63,9 +59,6 @@ def loginUser(email : str, password : str):
         return user_ls[0]["role"]
     else:
         return "no user of that email or password"
-
-
-
 
 @mcp.tool()
 def registerUser(name : str, password : str, role : str, email :str , phno : int | None = None, addr : str | None = None ):

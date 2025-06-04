@@ -1,44 +1,11 @@
 import json
-from pymongo import MongoClient
-from pymongo.errors import ConnectionFailure
 from mcp.server.fastmcp import FastMCP
 from bson import ObjectId
-from dotenv import load_dotenv
-import os
-
-load_dotenv()
+from utils.db_utils import get_mongo_client
+from utils.constants import DEFAULT_DATABASE, PROFILE_COLLECTION, INVENTORY_COLLECTION
+from utils.helpers import get_email_by_name, serialize_doc
 
 mcp = FastMCP("Seller Service")
-
-MONGODB_USER = os.getenv("MONGODB_USER")
-MONGODB_PASS = os.getenv("MONGODB_PASS")
-MONGODB_CLUSTER = os.getenv("MONGODB_CLUSTER")
-
-MONGODB_URI = f"mongodb+srv://{MONGODB_USER}:{MONGODB_PASS}@{MONGODB_CLUSTER}/"
-
-DEFAULT_DATABASE = "superstore"
-INVENTORY_COLLECTION = "inventory"
-PROFILE_COLLECTION = "profile"
-
-def get_mongo_client():
-    try:
-        client = MongoClient(MONGODB_URI, serverSelectionTimeoutMS=5000)
-        client.admin.command('ping')
-        return client
-    except ConnectionFailure as e:
-        raise Exception(f"Failed to connect to MongoDB: {str(e)}")
-
-def serialize_doc(doc):
-    """Convert MongoDB document to JSON serializable format"""
-    if isinstance(doc, dict):
-        for key, value in doc.items():
-            if isinstance(value, ObjectId):
-                doc[key] = str(value)
-            elif isinstance(value, dict):
-                doc[key] = serialize_doc(value)
-            elif isinstance(value, list):
-                doc[key] = [serialize_doc(item) if isinstance(item, dict) else item for item in value]
-    return doc
 
 @mcp.tool()
 def add_product(seller_email, product_name, price, quantity):
@@ -181,20 +148,12 @@ def view_seller_products(seller_name):
     try:
         client = get_mongo_client()
         db = client[DEFAULT_DATABASE]
-        profile_collection = db[PROFILE_COLLECTION]
         inventory_collection = db[INVENTORY_COLLECTION]
 
-        seller_profile = profile_collection.find_one({
-            "name": {"$regex": f"^{seller_name.strip()}$", "$options": "i"},
-            "role": {"$regex": "^seller$", "$options": "i"}
-        })
+        seller_email = get_email_by_name(seller_name.strip())
 
-        if not seller_profile:
-            return json.dumps({"error": f"No seller found with name '{seller_name}'."})
-
-        seller_email = seller_profile.get("email")
         if not seller_email:
-            return json.dumps({"error": "Seller email not found in profile."})
+            return json.dumps({"error": f"No seller email found for name '{seller_name}'."})
 
         cursor = inventory_collection.find({"seller_email": seller_email.lower()})
         products = [serialize_doc(doc) for doc in cursor]
