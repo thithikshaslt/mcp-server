@@ -166,10 +166,11 @@ def add_balance(name: str, amount: float) -> str:
 
 
 @mcp.tool()
-def add_to_cart(name: str, product_id: str, quantity: int) -> str:
-    """Add an item to the buyer's cart"""
-    if quantity <= 0:
-        return "Quantity must be greater than zero."
+def add_to_cart(name: str, product_id: str = None, quantity: int = None, items: list = None) -> str:
+    """
+    Add single or multiple products to the buyer's cart.
+    Either pass 'product_id' and 'quantity', or 'items' as a list of {"product_id", "quantity"}.
+    """
 
     email = get_email_by_name(name)
     if not email:
@@ -178,23 +179,59 @@ def add_to_cart(name: str, product_id: str, quantity: int) -> str:
     client = get_mongo_client()
     try:
         db = client[DEFAULT_DATABASE]
-        product = db[INVENTORY_COLLECTION].find_one({"_id": ObjectId(product_id)})
-        if not product:
-            return "Product not found."
+        inventory = db[INVENTORY_COLLECTION]
+        profile = db[PROFILE_COLLECTION]
 
-        cart_item = {
-            "product_id": str(product["_id"]),
-            "name": product["name"],
-            "price": product["price"],
-            "quantity": quantity,
-            "seller_email": product["seller_email"]
-        }
+        cart_items = []
 
-        db[PROFILE_COLLECTION].update_one(
-            {"email": email},
-            {"$push": {"cart": cart_item}}
-        )
-        return f"Added {quantity} of '{product['name']}' to {name}'s cart."
+        if items: 
+            for item in items:
+                pid = item.get("product_id")
+                qty = item.get("quantity", 0)
+                if not pid or qty <= 0:
+                    continue
+                product = inventory.find_one({"_id": ObjectId(pid)})
+                if not product:
+                    continue
+                cart_items.append({
+                    "product_id": str(product["_id"]),
+                    "name": product["name"],
+                    "price": product["price"],
+                    "quantity": qty,
+                    "seller_email": product["seller_email"]
+                })
+
+            if not cart_items:
+                return "No valid items to add to cart."
+
+            profile.update_one(
+                {"email": email},
+                {"$push": {"cart": {"$each": cart_items}}}
+            )
+            return f"Added {len(cart_items)} item(s) to {name}'s cart."
+
+        elif product_id and quantity and quantity > 0:  # Handle single addition
+            product = inventory.find_one({"_id": ObjectId(product_id)})
+            if not product:
+                return "Product not found."
+
+            cart_item = {
+                "product_id": str(product["_id"]),
+                "name": product["name"],
+                "price": product["price"],
+                "quantity": quantity,
+                "seller_email": product["seller_email"]
+            }
+
+            profile.update_one(
+                {"email": email},
+                {"$push": {"cart": cart_item}}
+            )
+            return f"Added {quantity} of '{product['name']}' to {name}'s cart."
+
+        else:
+            return "Invalid input. Provide either a product_id with quantity, or a list of items."
+
     finally:
         client.close()
 
