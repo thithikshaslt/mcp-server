@@ -73,6 +73,48 @@ def add_product(seller_email, product_name, price, quantity):
         client.close()
 
 @mcp.tool()
+def add_multiple_products(seller_email: str, products_json: list[dict]) -> str:
+    """
+    Add multiple products to the inventory in one go.
+    """
+    client = None
+    try:
+        products_data = products_json 
+
+        if not isinstance(products_data, list):
+            return json.dumps({"error": "Expected a list of products."})
+
+        client = get_mongo_client()
+        db = client[DEFAULT_DATABASE]
+        collection = db[INVENTORY_COLLECTION]
+
+        products = []
+        for p in products_data:
+            product = {
+                "name": p["name"].strip(),
+                "price": float(p["price"]),
+                "quantity": int(p["quantity"]),
+                "seller_email": seller_email.strip().lower()
+            }
+            products.append(product)
+
+        result = collection.insert_many(products)
+
+        for i, product in enumerate(products):
+            product["_id"] = str(result.inserted_ids[i])
+
+        return json.dumps({
+            "message": f"{len(products)} products added successfully",
+            "products": products
+        }, indent=2)
+
+    except Exception as e:
+        return json.dumps({"error": str(e)})
+    finally:
+        if client:
+            client.close()
+
+@mcp.tool()
 def update_product(product_id, field, new_value):
     """
     Update product details.
