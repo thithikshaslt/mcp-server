@@ -176,7 +176,7 @@ def add_to_cart(name: str, product_id: str = None, quantity: int = None, items: 
             )
             return f"Added {len(cart_items)} item(s) to {name}'s cart."
 
-        elif product_id and quantity and quantity > 0:  # Handle single addition
+        elif product_id and quantity and quantity > 0: 
             product = inventory.find_one({"_id": ObjectId(product_id)})
             if not product:
                 return "Product not found."
